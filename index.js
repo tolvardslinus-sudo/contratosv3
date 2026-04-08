@@ -23,9 +23,9 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 
 
-if (!OPENAI_API_KEY) {
-    console.error("❌ OPENAI_API_KEY no definida. Abortando.");
-    process.exit(1);
+if (!process.env.OPENAI_API_KEY) {
+  console.error("❌ OPENAI_API_KEY no definida. Abortando.");
+  process.exit(1);
 }
 
 
