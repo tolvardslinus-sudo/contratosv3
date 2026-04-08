@@ -6,8 +6,7 @@ import OpenAI from "openai";
 //dotenv.config();
 
 // TEMPORAL - borrar después
-console.log("TODAS LAS ENV:", Object.keys(process.env));
-console.log("OPENAI:", process.env.OPENAI_API_KEY);
+
 
 const app = express();
 app.use(express.json());
