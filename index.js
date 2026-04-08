@@ -1,15 +1,23 @@
 import express from "express";
 import axios from "axios";
 import OpenAI from "openai";
-import dotenv from "dotenv";
+//import dotenv from "dotenv";
 
-dotenv.config();
+//dotenv.config();
 
 const app = express();
 app.use(express.json());
 
+// Solo carga .env en local, en Railway las variables ya están en process.env
+if (process.env.NODE_ENV !== "production") {
+  const dotenv = await import("dotenv");
+  dotenv.default.config();
+}
+
 const API_URL = process.env.API_URL;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+
 
 if (!OPENAI_API_KEY) {
     console.error("❌ OPENAI_API_KEY no definida. Abortando.");
