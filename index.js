@@ -9,6 +9,10 @@ const app = express();
 app.use(express.json());
 
 const API_URL = process.env.API_URL;
+console.log("ENV:", {
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    API_URL: process.env.API_URL
+});
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const log = (msg) => console.log(`[CHAT] ${msg}`);
