@@ -180,37 +180,41 @@ async function executeTool(name, args) {
             const res = await axios.get(`${API_URL}/allcontratos`);
             return res.data;
         }
-        case "crear_contrato": {
-            const today = new Date().toISOString().split("T")[0];
+case "crear_contrato": {
+    const today = new Date().toISOString().split("T")[0];
 
-            let fecha = args.fecha;
+    // 1️⃣ Fecha
+    let fecha = args.fecha;
+    if (!fecha) fecha = today;
+    else {
+        const f = fecha.toLowerCase().trim();
+        if (f.includes("hoy")) fecha = today;
+        if (fecha.includes("T")) fecha = fecha.split("T")[0];
+    }
 
-            if (!fecha) {
-                fecha = today;
-            } else {
-                const f = fecha.toLowerCase().trim();
+    // 2️⃣ Agregar 'id' si no existe
+    let contratoId = args.id || Date.now();
 
-                if (f.includes("hoy")) {
-                    fecha = today;
-                }
+    // 3️⃣ Asegurarse de que cada prestatario tenga 'monto'
+    const prestatarios = args.prestatarios.map(p => ({
+        ...p,
+        monto: p.monto || args.prestamistas.reduce((acc, prest) => acc + prest.monto, 0)
+    }));
 
-                // si viene formato ISO
-                if (fecha.includes("T")) {
-                    fecha = fecha.split("T")[0];
-                }
-            }
+    // 4️⃣ Armar los args finales
+    const finalArgs = {
+        ...args,
+        id: contratoId,
+        fecha,
+        prestatarios
+    };
 
-            const finalArgs = {
-                ...args,
-                fecha
-            };
+    console.log("ARGS ORIGINALES:", args);
+    console.log("ARGS FINALES:", finalArgs);
 
-            console.log("ARGS ORIGINALES:", args);
-            console.log("ARGS FINALES:", finalArgs);
-
-            const res = await axios.post(`${API_URL}/contratos`, finalArgs);
-            return res.data;
-        }
+    const res = await axios.post(`${API_URL}/contratos`, finalArgs);
+    return res.data;
+}
         case "eliminar_persona": {
             const res = await axios.delete(`${API_URL}/personas/${args.id}`);
             return res.data;
@@ -243,9 +247,9 @@ Reglas IMPORTANTES:
 - Si el usuario dice "de X para Y":
    → X = prestamista
    → Y = prestatario
-   - Para eliminar una persona o contrato, primero debes obtener su ID
+   - Para eliminar una persona o contrato, siempre usa directamente el _id proporcionado por el usuario
+- No inventes IDs ni uses buscar_persona para eliminar
 - Puedes usar buscar_persona o listar_contratos
-- Nunca inventes IDs
 `
     };
 
