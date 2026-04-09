@@ -13,8 +13,8 @@ app.use(express.json());
 
 // Solo carga .env en local, en Railway las variables ya están en process.env
 if (process.env.NODE_ENV !== "production") {
-  const dotenv = await import("dotenv");
-  dotenv.default.config();
+    const dotenv = await import("dotenv");
+    dotenv.default.config();
 }
 
 const API_URL = process.env.API_URL;
@@ -23,8 +23,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 
 if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY no definida. Abortando.");
-  process.exit(1);
+    console.error("❌ OPENAI_API_KEY no definida. Abortando.");
+    process.exit(1);
 }
 
 
@@ -90,15 +90,75 @@ const tools = [
     {
         type: "function",
         function: {
-            name: "crear_contrato",
-            description: "Crea un contrato",
+            name: "eliminar_persona",
+            description: "Elimina una persona por su _id de MongoDB",
             parameters: {
                 type: "object",
-                properties: { data: { type: "object" } },
-                required: ["data"],
-            },
-        },
+                properties: {
+                    id: {
+                        type: "string",
+                        description: "ID (_id) de la persona en MongoDB, por ejemplo: 69d78b077071dadef5655fbb"
+                    }
+                },
+                required: ["id"]
+            }
+        }
     },
+    {
+        type: "function",
+        function: {
+            name: "eliminar_contrato",
+            parameters: {
+                type: "object",
+                properties: {
+                    id: {
+                        type: "string",
+                        description: "ID del contrato (_id de Mongo)"
+                    }
+                },
+                required: ["id"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "crear_contrato",
+            description: "Crea un contrato entre prestamistas y prestatarios",
+            parameters: {
+                type: "object",
+                properties: {
+                    prestamistas: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                persona: { type: "string", description: "ID de la persona" },
+                                monto: { type: "number", description: "Monto prestado" }
+                            },
+                            required: ["persona", "monto"]
+                        }
+                    },
+                    prestatarios: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                persona: { type: "string", description: "ID de la persona" }
+                            },
+                            required: ["persona"]
+                        }
+                    },
+                    plazo: { type: "number" },
+                    tasaInteres: { type: "number" },
+                    fecha: { type: "string" },
+                    estado: { type: "string" },
+                    observaciones: { type: "string" }
+                },
+                required: ["prestamistas", "prestatarios", "plazo", "tasaInteres", "fecha", "estado"]
+            }
+        }
+    }
 ];
 
 async function executeTool(name, args) {
@@ -121,7 +181,43 @@ async function executeTool(name, args) {
             return res.data;
         }
         case "crear_contrato": {
-            const res = await axios.post(`${API_URL}/contratos`, args.data);
+            const today = new Date().toISOString().split("T")[0];
+
+            let fecha = args.fecha;
+
+            if (!fecha) {
+                fecha = today;
+            } else {
+                const f = fecha.toLowerCase().trim();
+
+                if (f.includes("hoy")) {
+                    fecha = today;
+                }
+
+                // si viene formato ISO
+                if (fecha.includes("T")) {
+                    fecha = fecha.split("T")[0];
+                }
+            }
+
+            const finalArgs = {
+                ...args,
+                fecha
+            };
+
+            console.log("ARGS ORIGINALES:", args);
+            console.log("ARGS FINALES:", finalArgs);
+
+            const res = await axios.post(`${API_URL}/contratos`, finalArgs);
+            return res.data;
+        }
+        case "eliminar_persona": {
+            const res = await axios.delete(`${API_URL}/personas/${args.id}`);
+            return res.data;
+        }
+
+        case "eliminar_contrato": {
+            const res = await axios.delete(`${API_URL}/contratos/${args.id}`);
             return res.data;
         }
         default:
@@ -131,6 +227,27 @@ async function executeTool(name, args) {
 
 app.post("/chat", async (req, res) => {
     const { messages } = req.body;
+    const today = new Date().toISOString().split("T")[0];
+    const systemMessage = {
+        role: "system",
+        content: `
+Eres un asistente que gestiona contratos financieros.
+
+Fecha actual: ${today}
+
+Reglas IMPORTANTES:
+- Si el usuario pregunta por la fecha actual, usa la fecha proporcionada arriba
+- NO inventes fechas
+- Usa siempre la fecha actual del sistema
+- Un contrato tiene prestamistas y prestatarios
+- Si el usuario dice "de X para Y":
+   → X = prestamista
+   → Y = prestatario
+   - Para eliminar una persona o contrato, primero debes obtener su ID
+- Puedes usar buscar_persona o listar_contratos
+- Nunca inventes IDs
+`
+    };
 
     if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ error: "El campo 'messages' es requerido y debe ser un array" });
@@ -143,7 +260,7 @@ app.post("/chat", async (req, res) => {
 
         let response = await openai.chat.completions.create({
             model: "gpt-4o",
-            messages,
+            messages: [systemMessage, ...messages],
             tools,
             tool_choice: "auto",
         });
@@ -177,7 +294,7 @@ app.post("/chat", async (req, res) => {
             log(`🔄 Enviando resultados de tools a OpenAI... (llamada #${callCount})`);
             response = await openai.chat.completions.create({
                 model: "gpt-4o",
-                messages: allMessages,
+                messages: [systemMessage, ...allMessages],
                 tools,
                 tool_choice: "auto",
             });
